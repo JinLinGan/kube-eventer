@@ -3,6 +3,7 @@ package prometheus
 import (
 	"net/url"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
@@ -73,6 +74,7 @@ type prometheusSink struct {
 	Cache    map[eventLabel]*eventCount
 	Lock     sync.RWMutex
 	StopSign chan struct{}
+	TTL      time.Duration
 }
 
 //eventLabel{
@@ -137,7 +139,7 @@ func (p *prometheusSink) ExportEvents(batch *core.EventBatch) {
 	p.Lock.Lock()
 	defer p.Lock.Unlock()
 
-	ttl := time.Now().Add(DefaultCacheTTL * -1)
+	ttl := time.Now().Add(p.TTL * -1)
 	for _, event := range batch.Events {
 
 		if event.LastTimestamp.Time.Before(ttl) {
@@ -145,7 +147,7 @@ func (p *prometheusSink) ExportEvents(batch *core.EventBatch) {
 		}
 
 		l := eventLabel{
-			EventID: event.Name,
+			EventID:           event.Name,
 			EventReason:       event.Reason,
 			PlatformReason:    getPlatformReason(event.Reason, event.Message),
 			ResourceKind:      event.InvolvedObject.Kind,
@@ -172,7 +174,7 @@ func (p *prometheusSink) DeleteTimeoutCache() {
 	p.Lock.Lock()
 	defer p.Lock.Unlock()
 
-	t := time.Now().Add(DefaultCacheTTL * -1)
+	t := time.Now().Add(p.TTL * -1)
 	for label, count := range p.Cache {
 		if count.lastChangeTime.Before(t) {
 			delete(p.Cache, label)
@@ -192,7 +194,21 @@ func getPlatformReason(eventReason string, message string) string {
 func CreatePrometheusSink(uri *url.URL) (core.EventSink, error) {
 	ps := &prometheusSink{
 		Cache: map[eventLabel]*eventCount{},
+		//TTL: DefaultCacheTTL,
 	}
+
+	ttl := DefaultCacheTTL
+	opts := uri.Query()
+
+	if len(opts["ttl"]) >= 1 {
+		t, err := strconv.Atoi(opts["ttl"][0])
+		if err == nil {
+			ttl = time.Minute * time.Duration(t)
+		}
+	}
+
+	ps.TTL = ttl
+
 	go func() {
 		t := time.NewTicker(DefaultDeleteCacheInterval)
 		for {

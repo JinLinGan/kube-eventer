@@ -32,7 +32,7 @@ spec:
             - /kube-eventer
             - --source=kubernetes:https://kubernetes.default
             - --sink=elasticsearch:http://elasticsearch-logging:9200?sniff=false&ver=6
-            - --sink=prometheus
+            - --sink=prometheus:?ttl=30
           env:
             - name: TZ
               value: Asia/Shanghai
