@@ -16,6 +16,7 @@ package sinks
 
 import (
 	"fmt"
+
 	"github.com/AliyunContainerService/kube-eventer/common/flags"
 	"github.com/AliyunContainerService/kube-eventer/core"
 	"github.com/AliyunContainerService/kube-eventer/sinks/dingtalk"
@@ -27,6 +28,7 @@ import (
 	"github.com/AliyunContainerService/kube-eventer/sinks/log"
 	"github.com/AliyunContainerService/kube-eventer/sinks/mongo"
 	"github.com/AliyunContainerService/kube-eventer/sinks/mysql"
+	"github.com/AliyunContainerService/kube-eventer/sinks/prometheus"
 	"github.com/AliyunContainerService/kube-eventer/sinks/riemann"
 	"github.com/AliyunContainerService/kube-eventer/sinks/sls"
 	"github.com/AliyunContainerService/kube-eventer/sinks/webhook"
@@ -65,6 +67,8 @@ func (this *SinkFactory) Build(uri flags.Uri) (core.EventSink, error) {
 		return eventbridge.NewEventBridgeSink(&uri.Val)
 	case "mongo":
 		return mongo.CreateMongoSink(&uri.Val)
+	case "prometheus":
+		return prometheus.CreatePrometheusSink(&uri.Val)
 	default:
 		return nil, fmt.Errorf("Sink not recognized: %s", uri.Key)
 	}
