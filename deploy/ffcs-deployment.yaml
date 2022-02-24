@@ -36,7 +36,7 @@ spec:
           env:
             - name: TZ
               value: Asia/Shanghai
-          image: harbor.ffcs.cn/library/kube-eventer-amd64:v1.2.0-6dac082
+          image: harbor.ffcs.cn/library/kube-eventer-amd64:v1.2.0-8461aaf
           imagePullPolicy: IfNotPresent
           name: kube-eventer
           resources:
