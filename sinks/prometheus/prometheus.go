@@ -9,6 +9,7 @@ import (
 
 	"github.com/AliyunContainerService/kube-eventer/core"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/klog"
 )
 
 type typeRule struct {
@@ -36,7 +37,7 @@ var DefaultRules = []typeRule{
 	},
 	{
 		EventReason:    "BackOff",
-		MessageRegex:   regexp.MustCompile(`.*didn't find available persistent volumes to bind.*`),
+		MessageRegex:   regexp.MustCompile(`.*Back-off restarting failed container.*`),
 		PlatformReason: "StartContainerError",
 	},
 }
@@ -142,7 +143,33 @@ func (p *prometheusSink) ExportEvents(batch *core.EventBatch) {
 	ttl := time.Now().Add(p.TTL * -1)
 	for _, event := range batch.Events {
 
-		if event.LastTimestamp.Time.Before(ttl) {
+		// 获取时间戳
+		var lastOccurrenceTimestamp time.Time
+
+		if event.LastTimestamp.IsZero() == false {
+			lastOccurrenceTimestamp = event.LastTimestamp.Time
+		} else if event.Series != nil && event.Series.LastObservedTime.IsZero() == false {
+			lastOccurrenceTimestamp = event.Series.LastObservedTime.Time
+		} else {
+			lastOccurrenceTimestamp = event.CreationTimestamp.Time
+		}
+
+		// 获取Count
+
+		var count uint64
+
+		if event.Count != 0 {
+			count = uint64(event.Count)
+		} else if event.Series != nil && event.Series.Count != 0 {
+			count = uint64(event.Series.Count)
+		} else {
+			count = 1
+		}
+
+		if lastOccurrenceTimestamp.Before(ttl) {
+			klog.Warningf("事件时间戳 %s 于当前时间差距大于 %d 分钟,事件 %s 被过滤",
+				lastOccurrenceTimestamp.Format(time.RFC3339),
+				p.TTL.Minutes(), event.Name)
 			continue
 		}
 
@@ -156,11 +183,11 @@ func (p *prometheusSink) ExportEvents(batch *core.EventBatch) {
 			EventType:         event.Type,
 		}
 		if e, ok := p.Cache[l]; ok {
-			e.updateCount(uint64(event.Count), event.LastTimestamp.Time)
+			e.updateCount(count, lastOccurrenceTimestamp)
 		} else {
 			p.Cache[l] = &eventCount{
-				count:          uint64(event.Count),
-				lastChangeTime: event.LastTimestamp.Time,
+				count:          count,
+				lastChangeTime: lastOccurrenceTimestamp,
 			}
 		}
 	}
